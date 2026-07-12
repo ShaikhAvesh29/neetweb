@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
@@ -278,7 +278,7 @@ const HelpDeskSection = (
 );
 
 // ─── Info Sections ────────────────────────────────────────────────────────────
-const INFO_SECTIONS: Record<string, JSX.Element> = {
+const INFO_SECTIONS: Record<string, React.ReactNode> = {
   home: HomeSection,
   helpdesk: HelpDeskSection,
   process: (

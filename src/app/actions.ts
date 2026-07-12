@@ -11,12 +11,34 @@ export async function submitBooking(data: {
   phone: string;
   city?: string;
   user_id?: string;
+  password?: string;
+  redirectTo?: string;
 }) {
   const supabaseUrl = "https://rsmkyutyppipcfrjnsjt.supabase.co";
   const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzbWt5dXR5cHBpcGNmcmpuc2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MTk2MTUsImV4cCI6MjA5OTI5NTYxNX0.YTAcTG9FVKkxlGM7EPl5GecAg7KyAGTJRVqlD7hT5NY";
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
   try {
+    let finalUserId = data.user_id;
+
+    if (data.password) {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: data.redirectTo,
+          data: { name: data.name },
+        },
+      });
+
+      if (authError) {
+        console.error("EXACT BACKEND AUTH ERROR:", authError);
+        return { success: false, message: authError.message };
+      }
+
+      finalUserId = authData.user?.id;
+    }
+
     const { data: result, error: supabaseError } = await supabase.rpc("assign_booking", {
       p_name: data.name,
       p_gender: data.gender,
@@ -25,7 +47,7 @@ export async function submitBooking(data: {
       p_email: data.email,
       p_phone: data.phone,
       p_city: data.city ?? null,
-      p_user_id: data.user_id ?? null,
+      p_user_id: finalUserId ?? null,
     });
 
     if (supabaseError) {
@@ -37,8 +59,8 @@ export async function submitBooking(data: {
       return { success: false, message: result?.message || "Booking failed." };
     }
 
-    if (data.user_id) {
-      await sendCounsellingTicket(data.user_id, data.email, {
+    if (finalUserId) {
+      await sendCounsellingTicket(finalUserId, data.email, {
         batch_number: result.batch_number,
         name: data.name,
         city: data.city,

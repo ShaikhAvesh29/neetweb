@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ArrowRight, ArrowLeft } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { submitBooking } from "@/app/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -68,21 +67,6 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/verified`,
-          data: { name: data.name },
-        },
-      });
-
-      if (authError) {
-        setError(authError.message);
-        setIsSubmitting(false);
-        return;
-      }
-
       const result = await submitBooking({
         name: data.name,
         gender: data.gender,
@@ -91,7 +75,8 @@ export default function SignupPage() {
         email: data.email,
         phone: data.phone,
         city: data.city,
-        user_id: authData.user?.id,
+        password: data.password,
+        redirectTo: `${window.location.origin}/auth/verified`,
       });
 
       if (!result.success) {

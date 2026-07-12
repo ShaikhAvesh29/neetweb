@@ -13,9 +13,15 @@ import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  gender: z.enum(["Male", "Female", "Other"], { errorMap: () => ({ message: "Please select a gender" }) }),
+  gender: z.enum(["Male", "Female", "Other"], {
+    required_error: "Please select a gender",
+    invalid_type_error: "Please select a valid gender",
+  }),
   city: z.string().min(2, "City must be at least 2 characters"),
-  is_nri: z.enum(["yes", "no"], { errorMap: () => ({ message: "Please select NRI status" }) }),
+  is_nri: z.enum(["yes", "no"], {
+    required_error: "Please select NRI status",
+    invalid_type_error: "Please select a valid NRI status",
+  }),
   neet_score: z.number().min(0).max(720, "NEET score must be between 0 and 720"),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(10, "Phone number must be at least 10 digits"),

@@ -85,7 +85,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/auth/verify");
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
       setIsSubmitting(false);

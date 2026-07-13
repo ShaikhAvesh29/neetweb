@@ -6,7 +6,7 @@ const nextConfig = {
     return [
       {
         source: '/supabase-api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fallback.supabase.co'}/:path*`,
       },
     ];
   },

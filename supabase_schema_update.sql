@@ -59,3 +59,18 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 3. Row Level Security policies for bookings and site_settings
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own bookings" ON public.bookings;
+CREATE POLICY "Users can view own bookings"
+ON public.bookings FOR SELECT
+USING (auth.uid() = user_id);
+
+ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can view site settings" ON public.site_settings;
+CREATE POLICY "Anyone can view site settings"
+ON public.site_settings FOR SELECT
+USING (true);

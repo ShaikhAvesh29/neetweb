@@ -107,7 +107,12 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
       doc.text("SIDDQIA TRUST · NEET COUNSELLING", W / 2, 20, { align: "center" });
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(16);
-      doc.text(`BOARDING PASS — BATCH ${booking.batch_number}`, W / 2, 31, { align: "center" });
+      
+      const batchDateStr = booking.batches?.batch_date 
+        ? new Date(booking.batches.batch_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+        : `BATCH ${booking.batch_number}`;
+
+      doc.text(`COUNSELLING PASS — ${batchDateStr}`, W / 2, 31, { align: "center" });
 
       doc.setDrawColor(228, 228, 231);
       doc.setLineWidth(0.4);
@@ -219,8 +224,22 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
         <div className="bg-zinc-900 dark:bg-zinc-100 px-6 py-5 text-white dark:text-zinc-900 text-center relative">
           <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-zinc-100 dark:bg-zinc-950 rounded-full border border-zinc-200 dark:border-zinc-800" />
           <div className="absolute -bottom-3 -right-3 w-6 h-6 bg-zinc-100 dark:bg-zinc-950 rounded-full border border-zinc-200 dark:border-zinc-800" />
-          <p className="text-xs tracking-widest text-zinc-400 dark:text-zinc-500 uppercase font-semibold mb-1">Boarding Pass</p>
-          <p className="text-2xl font-bold">Batch {booking.batch_number}</p>
+          
+          {/* Change the subtitle to fit the educational context */}
+          <p className="text-sm text-zinc-400 dark:text-zinc-500 uppercase tracking-widest font-semibold mb-1">
+            Counselling Pass
+          </p>
+
+          {/* Format the date dynamically (e.g., "19 July 2026") */}
+          <h2 className="text-3xl font-bold mt-1">
+            {booking.batches?.batch_date 
+              ? new Date(booking.batches.batch_date).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                })
+              : `Batch ${booking.batch_number}`}
+          </h2>
         </div>
         {/* Details */}
         <div className="px-6 pt-7 pb-5 space-y-4 border-b-2 border-dashed border-zinc-200 dark:border-zinc-800">
@@ -641,7 +660,7 @@ export default function Dashboard() {
       if (!session) { router.push("/auth"); return; }
       setUser(session.user);
       const { data } = await supabase
-        .from("bookings").select("*").eq("user_id", session.user.id).single();
+        .from("bookings").select("*, batches(batch_date)").eq("user_id", session.user.id).single();
       setBooking(data || null);
       setLoading(false);
     };
@@ -650,7 +669,7 @@ export default function Dashboard() {
 
   const refetchBooking = async (userId: string) => {
     const { data } = await supabase
-      .from("bookings").select("*").eq("user_id", userId).single();
+      .from("bookings").select("*, batches(batch_date)").eq("user_id", userId).single();
     setBooking(data || null);
   };
 

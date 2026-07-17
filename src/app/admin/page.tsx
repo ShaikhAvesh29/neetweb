@@ -12,7 +12,7 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
   const [fetching, setFetching] = useState(false);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function AdminDashboard() {
       setSession(session);
       setLoading(false);
       if (session) {
-        fetchBookings();
+        fetchBatches();
       }
     });
 
@@ -29,7 +29,7 @@ export default function AdminDashboard() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        fetchBookings();
+        fetchBatches();
       }
     });
 
@@ -46,20 +46,20 @@ export default function AdminDashboard() {
     if (error) setAuthError(error.message);
   };
 
-  const fetchBookings = async () => {
+  const fetchBatches = async () => {
     setFetching(true);
     const { data, error } = await supabase
-      .from("bookings")
-      .select("*")
-      .order("batch_number", { ascending: true })
-      .order("created_at", { ascending: true });
+      .from("batches")
+      .select("*, bookings(*)")
+      .order("batch_date", { ascending: true });
     
-    if (data) setBookings(data);
+    if (data) setBatches(data);
     setFetching(false);
   };
 
   const exportCSV = () => {
-    const csv = Papa.unparse(bookings);
+    const flatBookings = batches.flatMap(b => b.bookings);
+    const csv = Papa.unparse(flatBookings);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     document.body.removeChild(link);
   };
 
-  const exportBatchPDF = async (batchNumber: number, students: any[]) => {
+  const exportBatchPDF = async (batchDateStr: string, students: any[]) => {
     try {
       const [{ jsPDF }, { default: autoTable }] = await Promise.all([
         import("jspdf"),
@@ -89,7 +89,7 @@ export default function AdminDashboard() {
       doc.text("SIDDQIA TRUST · NEET UG COUNSELLING", W / 2, 16, { align: "center" });
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
-      doc.text(`BATCH ${batchNumber} — ATTENDANCE REPORT`, W / 2, 28, { align: "center" });
+      doc.text(`SUNDAY BATCH — ${batchDateStr}`, W / 2, 28, { align: "center" });
       doc.setTextColor(161, 161, 170);
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
         );
       }
 
-      doc.save(`siddqia-batch${batchNumber}-attendance.pdf`);
+      doc.save(`siddqia-batch-${batchDateStr.replace(/ /g, "-")}-attendance.pdf`);
     } catch (err) {
       console.error("PDF export error:", err);
     }
@@ -203,12 +203,7 @@ export default function AdminDashboard() {
     );
   }
 
-  // Group by batch
-  const groupedBookings = bookings.reduce((acc, curr) => {
-    if (!acc[curr.batch_number]) acc[curr.batch_number] = [];
-    acc[curr.batch_number].push(curr);
-    return acc;
-  }, {} as Record<number, any[]>);
+  // Group by batch logic removed since batches already contain their bookings
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] p-8 md:p-12">
@@ -235,22 +230,29 @@ export default function AdminDashboard() {
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-black/20" />
           </div>
-        ) : Object.keys(groupedBookings).length === 0 ? (
+        ) : batches.length === 0 ? (
           <div className="text-center py-20 text-black/40">
-            No bookings found.
+            No batches found.
           </div>
         ) : (
           <div className="space-y-12">
-            {Object.entries(groupedBookings).map(([batch, items]) => (
-              <div key={batch}>
+            {batches.map((batch) => {
+              const formattedDate = new Date(batch.batch_date).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              });
+              
+              return (
+              <div key={batch.id} className="mb-8">
                 <div className="flex items-center justify-between mb-4 px-2">
                   <div>
-                    <h2 className="text-lg font-semibold text-black/80">Batch {batch}</h2>
-                    <p className="text-sm text-black/40 mt-0.5">{(items as any[]).length} students</p>
+                    <h2 className="text-lg font-semibold text-black/80">Sunday Batch: {formattedDate}</h2>
+                    <p className="text-sm text-black/40 mt-0.5">{batch.bookings.length} / {batch.max_capacity || 40} students</p>
                   </div>
                   <button
-                    id={`download-pdf-batch-${batch}`}
-                    onClick={() => exportBatchPDF(Number(batch), items as any[])}
+                    id={`download-pdf-batch-${batch.id}`}
+                    onClick={() => exportBatchPDF(formattedDate, batch.bookings)}
                     className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-sm font-medium hover:bg-black/80 transition-colors shadow-sm"
                   >
                     <FileText className="w-4 h-4" />
@@ -271,7 +273,7 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-black/5">
-                        {(items as any[]).map((b) => (
+                        {batch.bookings.map((b: any) => (
                           <tr key={b.id} className="hover:bg-black/[0.02] transition-colors">
                             <td className="px-6 py-4 font-medium text-black">{b.name}</td>
                             <td className="px-6 py-4 text-black/70">{b.gender}</td>
@@ -286,7 +288,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>

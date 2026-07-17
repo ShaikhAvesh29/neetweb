@@ -114,7 +114,7 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
       doc.line(10, 44, W - 10, 44);
 
       const fields = [
-        ["PASSENGER", booking.name],
+        ["STUDENT NAME", booking.name],
         ["NEET SCORE", String(booking.neet_score)],
         ["CITY", booking.city || "—"],
         ["SESSION TIME", "10:00 AM — 1:00 PM"],
@@ -225,7 +225,7 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
         {/* Details */}
         <div className="px-6 pt-7 pb-5 space-y-4 border-b-2 border-dashed border-zinc-200 dark:border-zinc-800">
           <div>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wider font-bold">Passenger</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wider font-bold">Student Name</p>
             <p className="text-zinc-900 dark:text-zinc-100 font-bold text-lg mt-0.5">{booking.name}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">

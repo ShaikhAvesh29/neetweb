@@ -24,11 +24,28 @@ const NAV_ITEMS = [
   { id: "profile",  label: "My Profile",          icon: User },
 ];
 
+const HMAC_KEY = process.env.NEXT_PUBLIC_TICKET_HMAC_KEY || "siddqia-trust-secret-key-2024";
+
+async function generateHmac(message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(HMAC_KEY);
+  const messageData = encoder.encode(message);
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+}
+
 // ─── My Ticket ────────────────────────────────────────────────────────────────
-function MyTicket({ booking, user }: { booking: any, user: any }) {
+function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onCancelled: () => void }) {
   const [isEmailing, setIsEmailing] = useState(false);
   const [emailStatus, setEmailStatus] = useState<"idle" | "success" | "error" | "blocked">("idle");
   const [statusMessage, setStatusMessage] = useState("");
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   const handleEmailTicket = async () => {
     setIsEmailing(true);
@@ -46,6 +63,129 @@ function MyTicket({ booking, user }: { booking: any, user: any }) {
       setStatusMessage(response.message || "Failed to send ticket.");
     }
     setIsEmailing(false);
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const [{ jsPDF }, QRCode] = await Promise.all([
+        import("jspdf"),
+        import("qrcode"),
+      ]);
+
+      const message = JSON.stringify({
+        bookingId: booking.id,
+        userId: user.id,
+        batchNumber: booking.batch_number,
+      });
+      const hmac = await generateHmac(message);
+      const payload = btoa(JSON.stringify({
+        bookingId: booking.id,
+        userId: user.id,
+        batchNumber: booking.batch_number,
+        hmac,
+      }));
+      const verifyUrl = `${window.location.origin}/api/verify-ticket?token=${payload}`;
+
+      const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+        width: 300,
+        margin: 2,
+        color: { dark: "#18181b", light: "#ffffff" },
+      });
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a5" });
+      const W = doc.internal.pageSize.getWidth();
+
+      doc.setFillColor(248, 249, 250);
+      doc.rect(0, 0, W, doc.internal.pageSize.getHeight(), "F");
+
+      doc.setFillColor(24, 24, 27);
+      doc.roundedRect(10, 10, W - 20, 28, 4, 4, "F");
+      doc.setTextColor(161, 161, 170);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.text("SIDDQIA TRUST · NEET COUNSELLING", W / 2, 20, { align: "center" });
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.text(`BOARDING PASS — BATCH ${booking.batch_number}`, W / 2, 31, { align: "center" });
+
+      doc.setDrawColor(228, 228, 231);
+      doc.setLineWidth(0.4);
+      doc.line(10, 44, W - 10, 44);
+
+      const fields = [
+        ["PASSENGER", booking.name],
+        ["NEET SCORE", String(booking.neet_score)],
+        ["CITY", booking.city || "—"],
+        ["SESSION TIME", "10:00 AM — 1:00 PM"],
+        ["VENUE", "Siddiqui Masjid, Mumbra, Thane"],
+      ];
+
+      let y = 52;
+      fields.forEach(([label, value]) => {
+        doc.setFontSize(6.5);
+        doc.setTextColor(113, 113, 122);
+        doc.setFont("helvetica", "bold");
+        doc.text(label, 14, y);
+        doc.setFontSize(9);
+        doc.setTextColor(24, 24, 27);
+        doc.setFont("helvetica", "normal");
+        doc.text(value, 14, y + 5);
+        y += 13;
+      });
+
+      doc.setLineDashPattern([2, 2], 0);
+      doc.setDrawColor(228, 228, 231);
+      doc.line(10, y + 2, W - 10, y + 2);
+      doc.setLineDashPattern([], 0);
+
+      const qrSize = 44;
+      const qrX = (W - qrSize) / 2;
+      doc.addImage(qrDataUrl, "PNG", qrX, y + 8, qrSize, qrSize);
+
+      doc.setFontSize(6.5);
+      doc.setTextColor(113, 113, 122);
+      doc.setFont("helvetica", "normal");
+      doc.text("Scan at the door for entry verification", W / 2, y + 56, { align: "center" });
+
+      doc.setFontSize(6);
+      doc.setTextColor(161, 161, 170);
+      doc.text(
+        `ID: ${booking.id?.slice(0, 16).toUpperCase() || "N/A"} · Arrive 15 mins early · Bring hall ticket + Aadhaar`,
+        W / 2,
+        doc.internal.pageSize.getHeight() - 8,
+        { align: "center" }
+      );
+
+      doc.save(`siddqia-gatepass-batch${booking.batch_number}.pdf`);
+    } catch (err) {
+      console.error("PDF generation error:", err);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const handleCancelBooking = async () => {
+    setIsCancelling(true);
+    setCancelError("");
+    try {
+      const res = await fetch("/api/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: booking.id, userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowCancelModal(false);
+        onCancelled();
+      } else {
+        setCancelError(data.message || "Cancellation failed. Please try again.");
+      }
+    } catch {
+      setCancelError("Network error. Please try again.");
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   if (!booking) {
@@ -123,20 +263,101 @@ function MyTicket({ booking, user }: { booking: any, user: any }) {
         Please arrive 15 minutes early. Bring your hall ticket and a valid ID proof.
       </p>
 
-      <button
-        onClick={handleEmailTicket}
-        disabled={isEmailing || emailStatus === "success" || emailStatus === "blocked"}
-        className="w-full flex items-center justify-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 py-3.5 rounded-xl font-semibold hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-      >
-        {isEmailing ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <>
-            <Send className="w-4 h-4" />
-            {emailStatus === "success" ? "Sent Successfully" : "Email My Ticket"}
-          </>
+      <div className="space-y-3">
+        <button
+          id="download-gatepass-btn"
+          onClick={handleDownloadPDF}
+          disabled={isGeneratingPDF}
+          className="w-full flex items-center justify-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 py-3.5 rounded-xl font-semibold hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+        >
+          {isGeneratingPDF ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              {isGeneratingPDF ? "Generating..." : "Download Gate Pass (PDF)"}
+            </>
+          )}
+        </button>
+
+        <button
+          id="email-ticket-btn"
+          onClick={handleEmailTicket}
+          disabled={isEmailing || emailStatus === "success" || emailStatus === "blocked"}
+          className="w-full flex items-center justify-center gap-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 py-3.5 rounded-xl font-semibold border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isEmailing ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              {emailStatus === "success" ? "Sent Successfully" : "Email My Ticket"}
+            </>
+          )}
+        </button>
+
+        <button
+          id="cancel-booking-btn"
+          onClick={() => setShowCancelModal(true)}
+          className="w-full flex items-center justify-center gap-2 text-red-500 py-3 rounded-xl font-medium text-sm hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Cancel My Booking
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showCancelModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6"
+            onClick={() => !isCancelling && setShowCancelModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 16 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-zinc-900 rounded-2xl p-7 max-w-sm w-full shadow-2xl border border-zinc-200 dark:border-zinc-800"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-zinc-900 dark:text-zinc-100 font-bold text-lg text-center mb-2">Cancel Booking?</h3>
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm text-center leading-relaxed mb-6">
+                This will permanently remove your Batch {booking.batch_number} slot. If you change your mind, you&apos;ll need to re-register (subject to availability).
+              </p>
+              {cancelError && (
+                <p className="text-red-500 text-sm text-center mb-4">{cancelError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={isCancelling}
+                  className="flex-1 py-3 rounded-xl font-semibold text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                >
+                  Keep Slot
+                </button>
+                <button
+                  id="confirm-cancel-btn"
+                  onClick={handleCancelBooking}
+                  disabled={isCancelling}
+                  className="flex-1 py-3 rounded-xl font-semibold text-sm text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Cancel"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </button>
+      </AnimatePresence>
     </div>
   );
 }
@@ -427,6 +648,12 @@ export default function Dashboard() {
     init();
   }, [router]);
 
+  const refetchBooking = async (userId: string) => {
+    const { data } = await supabase
+      .from("bookings").select("*").eq("user_id", userId).single();
+    setBooking(data || null);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/auth");
@@ -441,7 +668,7 @@ export default function Dashboard() {
   }
 
   const renderContent = () => {
-    if (activeSection === "ticket") return <MyTicket booking={booking} user={user} />;
+    if (activeSection === "ticket") return <MyTicket booking={booking} user={user} onCancelled={() => refetchBooking(user.id)} />;
     return INFO_SECTIONS[activeSection] || INFO_SECTIONS["home"];
   };
 

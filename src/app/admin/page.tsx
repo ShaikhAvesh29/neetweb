@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, FileText } from "lucide-react";
 import Papa from "papaparse";
 
 export default function AdminDashboard() {
@@ -69,6 +69,92 @@ export default function AdminDashboard() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const exportBatchPDF = async (batchNumber: number, students: any[]) => {
+    try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+
+      // Header
+      doc.setFillColor(24, 24, 27);
+      doc.rect(0, 0, W, 40, "F");
+      doc.setTextColor(161, 161, 170);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("SIDDQIA TRUST · NEET UG COUNSELLING", W / 2, 16, { align: "center" });
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.text(`BATCH ${batchNumber} — ATTENDANCE REPORT`, W / 2, 28, { align: "center" });
+      doc.setTextColor(161, 161, 170);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Generated: ${new Date().toLocaleString("en-IN")} · Total Students: ${students.length}`, W / 2, 36, { align: "center" });
+
+      // Table
+      autoTable(doc, {
+        startY: 50,
+        head: [["#", "Name", "Gender", "City", "NEET Score", "Phone", "NRI", "Check-In ✓"]],
+        body: students.map((s, i) => [
+          String(i + 1),
+          s.name || "—",
+          s.gender || "—",
+          s.city || "—",
+          String(s.neet_score || "—"),
+          s.phone || "—",
+          s.is_nri ? "Yes" : "No",
+          "",  // Manual check-in column
+        ]),
+        headStyles: {
+          fillColor: [24, 24, 27],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 9,
+        },
+        bodyStyles: {
+          fontSize: 8.5,
+          textColor: [39, 39, 42],
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: 42 },
+          2: { cellWidth: 18 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 24, halign: "center" },
+          5: { cellWidth: 30 },
+          6: { cellWidth: 14, halign: "center" },
+          7: { cellWidth: 18, halign: "center" },
+        },
+        margin: { left: 10, right: 10 },
+      });
+
+      // Footer
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(161, 161, 170);
+        doc.text(
+          `Siddqia Trust · Mumbra, Thane, Maharashtra · Page ${i} of ${pageCount}`,
+          W / 2,
+          doc.internal.pageSize.getHeight() - 6,
+          { align: "center" }
+        );
+      }
+
+      doc.save(`siddqia-batch${batchNumber}-attendance.pdf`);
+    } catch (err) {
+      console.error("PDF export error:", err);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -157,7 +243,20 @@ export default function AdminDashboard() {
           <div className="space-y-12">
             {Object.entries(groupedBookings).map(([batch, items]) => (
               <div key={batch}>
-                <h2 className="text-lg font-semibold mb-4 px-2 text-black/80">Batch {batch}</h2>
+                <div className="flex items-center justify-between mb-4 px-2">
+                  <div>
+                    <h2 className="text-lg font-semibold text-black/80">Batch {batch}</h2>
+                    <p className="text-sm text-black/40 mt-0.5">{(items as any[]).length} students</p>
+                  </div>
+                  <button
+                    id={`download-pdf-batch-${batch}`}
+                    onClick={() => exportBatchPDF(Number(batch), items as any[])}
+                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-sm font-medium hover:bg-black/80 transition-colors shadow-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Download PDF
+                  </button>
+                </div>
                 <div className="bg-white rounded-2xl shadow-sm border border-black/5 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">

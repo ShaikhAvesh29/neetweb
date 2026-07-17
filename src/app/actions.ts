@@ -155,7 +155,7 @@ export async function sendCounsellingTicket(userId: string, email: string, booki
     return { success: false, already_sent: true, message: "Ticket already emailed." };
   }
 
-  // 2. Send email via Nodemailer
+  // 2. Send email via Nodemailer (Gmail App Password)
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -165,32 +165,93 @@ export async function sendCounsellingTicket(userId: string, email: string, booki
       },
     });
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your NEET Counselling Digital Ticket - Siddqia Trust",
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; border-radius: 12px; background: #fafafa;">
-          <h2 style="color: #18181b; text-align: center;">Boarding Pass - Batch ${booking.batch_number}</h2>
-          <p style="color: #52525b; text-align: center;">Here is your digital ticket for the counselling session.</p>
-          <div style="background: #ffffff; padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid #e4e4e7;">
-            <p><strong>Passenger:</strong> ${booking.name}</p>
-            <p><strong>City:</strong> ${booking.city || "—"}</p>
-            <p><strong>NEET Score:</strong> ${booking.neet_score}</p>
-            <p><strong>Time:</strong> 10:00 AM to 1:00 PM</p>
-            <p><strong>Venue:</strong> Siddiqui Masjid, Mumbra, Thane, Maharashtra</p>
-          </div>
-          <p style="text-align: center; font-size: 12px; color: #a1a1aa; margin-top: 20px;">
-            Please arrive 15 minutes early. Bring your hall ticket and a valid ID proof.
-          </p>
-        </div>
-      `,
-    };
+    // Format the Sunday date nicely if available
+    const batchDateStr = booking.batch_date
+      ? new Date(booking.batch_date).toLocaleDateString("en-IN", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : `Batch ${booking.batch_number}`;
 
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail({
+      from: `"Siddqia Trust" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `✅ Booking Confirmed — Batch ${booking.batch_number} | Siddqia Trust`,
+      html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Booking Confirmed</title></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+        <!-- Header -->
+        <tr><td style="background:#18181b;border-radius:16px 16px 0 0;padding:32px 40px;text-align:center;">
+          <p style="color:#a1a1aa;font-size:12px;letter-spacing:0.15em;text-transform:uppercase;margin:0 0 8px;">Siddqia Trust</p>
+          <h1 style="color:#ffffff;font-size:28px;font-weight:800;margin:0;">Booking Confirmed ✓</h1>
+          <p style="color:#71717a;font-size:14px;margin:8px 0 0;">NEET UG Counselling Session</p>
+        </td></tr>
+        <!-- Ticket body -->
+        <tr><td style="background:#ffffff;padding:36px 40px;">
+          <p style="color:#3f3f46;font-size:15px;line-height:1.6;margin:0 0 28px;">Dear <strong style="color:#18181b;">${booking.name}</strong>,<br>Your slot has been successfully reserved. Here are your session details:</p>
+          <!-- Details grid -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:12px;overflow:hidden;">
+            <tr style="background:#fafafa;">
+              <td style="padding:14px 20px;border-bottom:1px solid #e4e4e7;width:40%;">
+                <p style="margin:0;font-size:11px;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">Batch</p>
+                <p style="margin:4px 0 0;font-size:16px;font-weight:800;color:#18181b;">Batch ${booking.batch_number}</p>
+              </td>
+              <td style="padding:14px 20px;border-bottom:1px solid #e4e4e7;">
+                <p style="margin:0;font-size:11px;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">Session Date</p>
+                <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#18181b;">${batchDateStr}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:14px 20px;border-bottom:1px solid #e4e4e7;">
+                <p style="margin:0;font-size:11px;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">Time</p>
+                <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#18181b;">10:00 AM – 1:00 PM</p>
+              </td>
+              <td style="padding:14px 20px;border-bottom:1px solid #e4e4e7;">
+                <p style="margin:0;font-size:11px;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">NEET Score</p>
+                <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#18181b;">${booking.neet_score}</p>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding:14px 20px;">
+                <p style="margin:0;font-size:11px;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;">Venue</p>
+                <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#18181b;">Siddiqui Masjid, Mumbra, Thane, Maharashtra</p>
+              </td>
+            </tr>
+          </table>
+          <!-- CTA -->
+          <div style="margin:28px 0;text-align:center;">
+            <a href="https://neetweb.vercel.app/dashboard" style="display:inline-block;background:#18181b;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 32px;border-radius:10px;">View My Ticket →</a>
+          </div>
+          <!-- Note -->
+          <div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;padding:16px 20px;">
+            <p style="margin:0;font-size:13px;color:#71717a;line-height:1.6;">
+              📋 <strong style="color:#3f3f46;">Please bring:</strong> Your NEET hall ticket, Aadhaar card, and any category certificates (if applicable).<br>
+              ⏰ <strong style="color:#3f3f46;">Arrive 15 minutes early</strong> to complete entry formalities.
+            </p>
+          </div>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background:#fafafa;border:1px solid #e4e4e7;border-radius:0 0 16px 16px;padding:20px 40px;text-align:center;">
+          <p style="margin:0;font-size:12px;color:#a1a1aa;">Organised by <strong>Siddqia Trust</strong> · Mumbra, Thane, Maharashtra</p>
+          <p style="margin:6px 0 0;font-size:12px;color:#a1a1aa;">Questions? Email <a href="mailto:aveshshaikh290307@gmail.com" style="color:#71717a;">aveshshaikh290307@gmail.com</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+      `,
+    });
   } catch (err: any) {
     console.error("Nodemailer error:", err);
-    return { success: false, message: "Failed to send email via SMTP." };
+    return { success: false, message: "Failed to send confirmation email." };
   }
 
   // 3. Log the successful send

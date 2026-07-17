@@ -46,6 +46,8 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookError, setBookError] = useState("");
 
   const handleEmailTicket = async () => {
     setIsEmailing(true);
@@ -193,12 +195,32 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
     }
   };
 
+  const handleRebook = async () => {
+    setIsBooking(true);
+    setBookError("");
+    const { data, error } = await supabase.rpc("secure_calendar_waterfall_allocation", { user_uuid: user.id });
+    if (error) {
+      setBookError(error.message || "Failed to book ticket.");
+    } else {
+      onCancelled(); // Re-fetch the booking data
+    }
+    setIsBooking(false);
+  };
+
   if (!booking) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Ticket className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mb-4" />
         <p className="text-zinc-600 dark:text-zinc-400 font-semibold">No booking found</p>
-        <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-1">Your ticket will appear here after booking.</p>
+        <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-1 mb-6">Your ticket will appear here after booking.</p>
+        <button
+          onClick={handleRebook}
+          disabled={isBooking}
+          className="px-6 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-medium hover:bg-zinc-800 dark:hover:bg-white transition-colors disabled:opacity-50"
+        >
+          {isBooking ? "Booking..." : "Book Ticket"}
+        </button>
+        {bookError && <p className="text-red-500 text-sm mt-3">{bookError}</p>}
       </div>
     );
   }

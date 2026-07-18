@@ -267,16 +267,16 @@ function MyTicket({ booking, user, onCancelled }: { booking: any; user: any; onC
         <div className="px-6 pt-7 pb-5 space-y-4 border-b-2 border-dashed border-zinc-200 dark:border-zinc-800">
           <div>
             <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wider font-bold">Student Name</p>
-            <p className="text-zinc-900 dark:text-zinc-100 font-bold text-lg mt-0.5">{booking.name}</p>
+            <p className="text-zinc-900 dark:text-zinc-100 font-bold text-lg mt-0.5">{booking.profiles?.name || booking.name || "—"}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wider font-bold">City</p>
-              <p className="text-zinc-800 dark:text-zinc-200 font-semibold mt-0.5">{booking.city || "—"}</p>
+              <p className="text-zinc-800 dark:text-zinc-200 font-semibold mt-0.5">{booking.profiles?.city || booking.city || "—"}</p>
             </div>
             <div>
               <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wider font-bold">NEET Score</p>
-              <p className="text-zinc-800 dark:text-zinc-200 font-semibold mt-0.5">{booking.neet_score}</p>
+              <p className="text-zinc-800 dark:text-zinc-200 font-semibold mt-0.5">{booking.profiles?.neet_score || booking.neet_score || "—"}</p>
             </div>
             <div>
               <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wider font-bold">Time</p>
@@ -683,6 +683,13 @@ export default function Dashboard() {
       setUser(session.user);
       const { data } = await supabase
         .from("bookings").select("*, batches(batch_date)").eq("user_id", session.user.id).single();
+      
+      if (data) {
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user_id).single();
+        if (profile) {
+          data.profiles = profile;
+        }
+      }
       setBooking(data || null);
       setLoading(false);
     };
@@ -692,6 +699,12 @@ export default function Dashboard() {
   const refetchBooking = async (userId: string) => {
     const { data } = await supabase
       .from("bookings").select("*, batches(batch_date)").eq("user_id", userId).single();
+    if (data) {
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user_id).single();
+      if (profile) {
+        data.profiles = profile;
+      }
+    }
     setBooking(data || null);
   };
 

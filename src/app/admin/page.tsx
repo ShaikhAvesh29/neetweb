@@ -50,10 +50,24 @@ export default function AdminDashboard() {
     setFetching(true);
     const { data, error } = await supabase
       .from("batches")
-      .select("*, bookings(*, profiles(*))")
+      .select("*, bookings(*)")
       .order("batch_date", { ascending: true });
     
-    if (data) setBatches(data);
+    if (data) {
+      const userIds = data.flatMap(b => b.bookings.map((bk: any) => bk.user_id));
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("*").in("id", userIds);
+        if (profiles) {
+          const profileMap = Object.fromEntries(profiles.map(p => [p.id, p]));
+          data.forEach(b => {
+            b.bookings.forEach((bk: any) => {
+              bk.profiles = profileMap[bk.user_id];
+            });
+          });
+        }
+      }
+      setBatches(data);
+    }
     setFetching(false);
   };
 

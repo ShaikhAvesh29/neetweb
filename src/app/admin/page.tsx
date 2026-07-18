@@ -50,7 +50,7 @@ export default function AdminDashboard() {
     setFetching(true);
     const { data, error } = await supabase
       .from("batches")
-      .select("*, bookings(*)")
+      .select("*, bookings(*, profiles(*))")
       .order("batch_date", { ascending: true });
     
     if (data) setBatches(data);
@@ -101,12 +101,12 @@ export default function AdminDashboard() {
         head: [["#", "Name", "Gender", "City", "NEET Score", "Phone", "NRI", "Check-In ✓"]],
         body: students.map((s, i) => [
           String(i + 1),
-          s.name || "—",
-          s.gender || "—",
-          s.city || "—",
-          String(s.neet_score || "—"),
-          s.phone || "—",
-          s.is_nri ? "Yes" : "No",
+          s.profiles?.name || s.name || "—",
+          s.profiles?.gender || s.gender || "—",
+          s.profiles?.city || s.city || "—",
+          String(s.profiles?.neet_score || s.neet_score || "—"),
+          s.profiles?.phone || s.phone || "—",
+          s.profiles?.is_nri || s.is_nri ? "Yes" : "No",
           "",  // Manual check-in column
         ]),
         headStyles: {
@@ -275,12 +275,12 @@ export default function AdminDashboard() {
                       <tbody className="divide-y divide-black/5 dark:divide-white/5">
                         {batch.bookings.map((b: any) => (
                           <tr key={b.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
-                            <td className="px-6 py-4 font-medium text-black dark:text-white">{b.name}</td>
-                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.gender}</td>
-                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.is_nri ? "Yes" : "No"}</td>
-                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.neet_score}</td>
-                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.email}</td>
-                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.phone}</td>
+                            <td className="px-6 py-4 font-medium text-black dark:text-white">{b.profiles?.name || b.name || "Unknown"}</td>
+                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.profiles?.gender || b.gender || "—"}</td>
+                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.profiles?.is_nri || b.is_nri ? "Yes" : "No"}</td>
+                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.profiles?.neet_score || b.neet_score || "—"}</td>
+                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.email || "—"}</td>
+                            <td className="px-6 py-4 text-black/70 dark:text-white/70">{b.profiles?.phone || b.phone || "—"}</td>
                           </tr>
                         ))}
                       </tbody>
